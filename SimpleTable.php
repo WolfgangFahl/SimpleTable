@@ -32,6 +32,8 @@
  * 1.2a last version by JohanTheGhost
  * 1.3 add barbar separator and allow collapsing. John Bray
  * 2.0 rewrite registration procedure. John Bray
+ * 2.1 security: attribute allowlist, htmlspecialchars on field content,
+ *     fix $wikiitab typo in applycssborderstyle branch. Wolfgang Fahl
  *
  * Thanks for contributions to:
  *	Smcnaught
@@ -83,6 +85,9 @@ class SimpleTable {
 	$params = 'data-expandtext="+" data-collapsetext="-"';
 	$collapse = '';
 
+        // Allowed HTML attributes to pass through to the <table> element.
+        $allowedAttribs = [ 'class', 'style', 'border', 'id', 'width', 'align', 'summary' ];
+
         foreach ($args as $key => $val) {
             if ($key == 'sep')
                 $sep = $val;
@@ -92,8 +97,9 @@ class SimpleTable {
                 $applycssborderstyle = $val;
             else if ($key == 'collapse')
 		$collapse= 'mw-collapsed';
-            else
-                $params .= ' ' . $key . '="' . $val . '"';
+            else if (in_array($key, $allowedAttribs, true))
+                $params .= ' ' . htmlspecialchars($key, ENT_QUOTES, 'UTF-8') . '="' . htmlspecialchars($val, ENT_QUOTES, 'UTF-8') . '"';
+            // Silently drop unknown/disallowed attributes.
         }
 
         $params .= ' ' . 'class="wikitable mw-collapsible ' . $collapse . '"';
@@ -124,11 +130,12 @@ class SimpleTable {
             $col = 0;
             foreach ($fields as $field) {
                 $cbar = strpos($head, 'left') !== false && $col == 0 ? '!' : $bar;
+                $safeField = htmlspecialchars($field, ENT_QUOTES, 'UTF-8');
                 if ($col < sizeof($fields)-1) {
                   /* don't wrap for all but last column */
-                  $wikitab .= $cbar . ' <span style="white-space: nowrap;">' . $field . "</span>\n";
+                  $wikitab .= $cbar . ' <span style="white-space: nowrap;">' . $safeField . "</span>\n";
                 } else {
-                  $wikitab .= $cbar . " " . $field . "\n";
+                  $wikitab .= $cbar . " " . $safeField . "\n";
                 }
                 ++$col;
             }
@@ -141,7 +148,7 @@ class SimpleTable {
           $wikiTable = "{|" . $params . "\n" . $wikitab . "|}";
         } else {
           $tablestyletext = 'style="border-collapse: collapse; border-width: 1px; border-style: solid; border-color: #000"';
-          $wikiTable = "{|" . $tablestyletext . " " . $params . "\n" . $wikiitab . "|}";
+          $wikiTable = "{|" . $tablestyletext . " " . $params . "\n" . $wikitab . "|}";
         }
         // Done.  Parse the result, so that the table can contain Wiki
         // text.  Thanks to Smcnaught.

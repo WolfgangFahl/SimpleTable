@@ -1,7 +1,7 @@
 {
         "name": "SimpleTable",
-        "author": "Johan the Ghost and John Bray",
-        "url": "https://github.com/jrbray1/SimpleTable",
+        "author": ["Johan the Ghost", "John Bray", "Wolfgang Fahl"],
+        "url": "https://github.com/WolfgangFahl/SimpleTable",
         "description": "Convert tab-separated or similar data into a Wiki table",
         "type": "parserhook",
         "requires": {
