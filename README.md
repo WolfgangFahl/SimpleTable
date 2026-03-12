@@ -5,6 +5,8 @@ A MediaWiki extension that converts tab-separated or similar data into a Wiki ta
 This is the **actively maintained fork** of the original unmaintained extension by JohanTheGhost and John Bray.
 Canonical URL: https://github.com/WolfgangFahl/SimpleTable
 
+MediaWiki extension page: https://www.mediawiki.org/wiki/Extension:SimpleTable
+
 ## Usage
 
 ```
@@ -33,6 +35,10 @@ A	B	C
    ```
 
 ## Changelog
+
+### 2.2 (2026)
+- **Fix:** Replace deprecated `Parser::parse()` / `$parser->mTitle` / `$parser->mOptions` with `$parser->recursiveTagParseFully()`, eliminating deprecation notices on MediaWiki 1.35+
+- Add mediawiki.org extension page link to README
 
 ### 2.1 (2026)
 - **Security:** Added `$allowedAttribs` allowlist — unknown/disallowed `<tab>` attributes are now silently dropped instead of being passed verbatim to the table element

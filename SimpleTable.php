@@ -34,6 +34,7 @@
  * 2.0 rewrite registration procedure. John Bray
  * 2.1 security: attribute allowlist, htmlspecialchars on field content,
  *     fix $wikiitab typo in applycssborderstyle branch. Wolfgang Fahl
+ * 2.2 replace deprecated Parser::parse() with recursiveTagParseFully(). Wolfgang Fahl
  *
  * Thanks for contributions to:
  *	Smcnaught
@@ -150,14 +151,12 @@ class SimpleTable {
           $tablestyletext = 'style="border-collapse: collapse; border-width: 1px; border-style: solid; border-color: #000"';
           $wikiTable = "{|" . $tablestyletext . " " . $params . "\n" . $wikitab . "|}";
         }
-        // Done.  Parse the result, so that the table can contain Wiki
-        // text.  Thanks to Smcnaught.
-        $ret = $parser->parse($wikiTable,
-                              $parser->mTitle,
-                              $parser->mOptions,
-                              false,
-                              false);
-	$HTML = trim( str_replace("</table>\n\n", "</table>", $ret->getText()) ); # remove superfluous newlines
+        // Parse the result so that the table can contain Wiki text.
+        // Uses recursiveTagParseFully() which is the correct approach for
+        // tag hook output in MediaWiki 1.35+ (Parser::parse() is deprecated).
+        $HTML = trim( str_replace( "</table>\n\n", "</table>",
+            $parser->recursiveTagParseFully( $wikiTable, $frame )
+        ) );
         return $HTML;
     }
 }
