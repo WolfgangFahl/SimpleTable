@@ -1,0 +1,17 @@
+{
+    "name": "wolfgangfahl/simpletable",
+    "description": "MediaWiki SimpleTable extension",
+    "type": "mediawiki-extension",
+    "license": "GPL-3.0-or-later",
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "classmap": [
+            "SimpleTableRenderer.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

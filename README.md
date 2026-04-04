@@ -36,6 +36,9 @@ A	B	C
 
 ## Changelog
 
+### 2.3 (2026)
+- **Refactor:** Extract `SimpleTableRenderer` — all wikitext-building logic moved to a pure PHP class with no MediaWiki dependency, enabling unit testing without a running MediaWiki instance. `SimpleTable` is now a thin hook adapter only.
+
 ### 2.2 (2026)
 - **Fix:** Replace deprecated `Parser::parse()` / `$parser->mTitle` / `$parser->mOptions` with `$parser->recursiveTagParseFully()`, eliminating deprecation notices on MediaWiki 1.35+
 - Add mediawiki.org extension page link to README

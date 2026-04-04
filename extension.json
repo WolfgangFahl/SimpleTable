@@ -8,7 +8,8 @@
                 "MediaWiki": ">= 1.35.0"
         },
         "AutoloadClasses": {
-                "SimpleTable": "SimpleTable.php"
+                "SimpleTable": "SimpleTable.php",
+                "SimpleTableRenderer": "SimpleTableRenderer.php"
         },
         "Hooks": {
         "ParserFirstCallInit": "SimpleTable::onParserFirstCallInit"

@@ -1,162 +1,68 @@
 <?php
- 
+
 /*
- * Tabbed Data extension.
+ * SimpleTable — MediaWiki hook adapter.
  *
- * This extension implements a simple method to display tabular data, with a
- * far simpler markup than the standard Wiki table markup.  The goal is to
- * allow tabular data to be very easily pasted in from an external source,
- * such as a spreadsheet.  The disadvantage is that it doesn't allow for any
- * fancy formatting; for example, there is no way (as yet) to set row and cell
- * parameters, including row and cell spanning.  However, it makes a very
- * simple way to include tabular data in a Wiki.
+ * This file contains only the MediaWiki integration layer:
+ *   - registers the <tab> custom tag with the parser
+ *   - delegates all wikitext construction to SimpleTableRenderer
+ *   - passes the resulting wikitext back through the parser
  *
- * All you need to do is prepare your data in rows, with fields separated
- * by tab characters.  Excel's "Save as" -> "Text (Tab delimited)" function
- * saves data in this format.  Place the data inside <tab>...</tab> tags,
- * and set any table parameters inside the opening <tab> tag; eg.:
+ * All testable logic lives in SimpleTableRenderer (no MediaWiki dependency).
  *
- *   <tab class=wikitable>
- *   field1\tfield2\t...
- *   field1\tfield2\t...
- *   </tab>
- *
- * Additional parameters allowed in the tag are:
- *   sep                  Specify a different separator; see the $separators array.
- *   head                 Specify a heading; "head=top" makes the first row a heading,
- *                        "head=left" makes the first column a heading, "head=topleft"
- *                        does both.
- *   applycssborderstyle  Adds a style to the table and each cell using css
- *                        border-colapse to give the table a black 1px border
- *
- * 1.2a last version by JohanTheGhost
- * 1.3 add barbar separator and allow collapsing. John Bray
- * 2.0 rewrite registration procedure. John Bray
- * 2.1 security: attribute allowlist, htmlspecialchars on field content,
- *     fix $wikiitab typo in applycssborderstyle branch. Wolfgang Fahl
- * 2.2 replace deprecated Parser::parse() with recursiveTagParseFully(). Wolfgang Fahl
+ * Version history:
+ *   1.2a  Last version by JohanTheGhost.
+ *   1.3   Add barbar separator and collapsible support. John Bray.
+ *   2.0   Rewrite extension registration to use extension.json. John Bray.
+ *   2.1   Security: attribute allowlist, htmlspecialchars on field content,
+ *         fix $wikiitab typo in applycssborderstyle branch. Wolfgang Fahl.
+ *   2.2   Replace deprecated Parser::parse() with recursiveTagParseFully().
+ *         Wolfgang Fahl.
+ *   2.3   Refactor for testability: extract SimpleTableRenderer. Wolfgang Fahl.
  *
  * Thanks for contributions to:
- *	Smcnaught
- *	Frederik Dohr
+ *   Smcnaught
+ *   Frederik Dohr
  */
 
 class SimpleTable {
 
-
-    // Register any tab callbacks with the parser
-    public static function onParserFirstCallInit( Parser $parser ) {
-        // When the parser sees the <tav> tag, it executes hookTab (see below)
+    /**
+     * Hook handler: registers the <tab> tag with the MediaWiki parser.
+     */
+    public static function onParserFirstCallInit( Parser $parser ): void {
         $parser->setHook( 'tab', [ self::class, 'hookTab' ] );
     }
 
-    /*
-     * The hook function. Handles <tab></tab>.
-     * Receives the table content and <tab> parameters.
+    /**
+     * Tag hook for <tab></tab>.
+     *
+     * Delegates wikitext construction to SimpleTableRenderer, then converts
+     * the wikitext to HTML via the MediaWiki parser.
+     *
+     * @param string  $tableText Raw text between the <tab> tags.
+     * @param array   $args      Associative array of tag attributes.
+     * @param Parser  $parser    The active MediaWiki parser instance.
+     * @param PPFrame $frame     The current parser frame.
+     * @return string            Rendered HTML, or an error string.
      */
-    public static function hookTab( $tableText, array $args, Parser $parser, PPFrame $frame ) {
+    public static function hookTab( $tableText, array $args, Parser $parser, PPFrame $frame ): string {
+        $renderer  = new SimpleTableRenderer( $tableText, $args );
+        $wikiTable = $renderer->getWikitext();
 
-      /*
-       * The permitted separators.  An array of separator style name
-       * and preg pattern to match it.
-       */
-      $separators = array(
-        'space' => '/ /',
-        'spaces' => '/\s+/',
-        'tab' => '/\t/',
-        'comma' => '/,/',
-        'colon' => '/:/',
-        'semicolon' => '/;/',
-        'bar' => '/\|/',
-        'barbar' => '/\|\|`/',
-      );
-
-        // The default field separator.
-        $sep = 'barbar';
- 
-        // Default value for using table headings.
-        $head = null;
-
-        // If we are to apply border-colapse CSS Border Style
-        $applycssborderstyle = false;
- 
-        // Build the table parameters string from the tag parameters.
-        // The 'sep' and 'head' parameters are special, and are handled
-        // here, not passed to the table.
-	$params = 'data-expandtext="+" data-collapsetext="-"';
-	$collapse = '';
-
-        // Allowed HTML attributes to pass through to the <table> element.
-        $allowedAttribs = [ 'class', 'style', 'border', 'id', 'width', 'align', 'summary' ];
-
-        foreach ($args as $key => $val) {
-            if ($key == 'sep')
-                $sep = $val;
-            else if ($key == 'head')
-                $head = $val;
-            else if ($key == 'applycssborderstyle') 
-                $applycssborderstyle = $val;
-            else if ($key == 'collapse')
-		$collapse= 'mw-collapsed';
-            else if (in_array($key, $allowedAttribs, true))
-                $params .= ' ' . htmlspecialchars($key, ENT_QUOTES, 'UTF-8') . '="' . htmlspecialchars($val, ENT_QUOTES, 'UTF-8') . '"';
-            // Silently drop unknown/disallowed attributes.
+        // On invalid separator the renderer returns a plain error string —
+        // return it directly without further parsing.
+        if ( !str_starts_with( $wikiTable, '{|' ) ) {
+            return $wikiTable;
         }
 
-        $params .= ' ' . 'class="wikitable mw-collapsible ' . $collapse . '"';
- 
-        if (!array_key_exists($sep, $separators))
-            return "Invalid separator: $sep";
- 
-        // Parse and convert the table body.
-        $pattern=$separators[$sep];
-
-        $wikitab = '';
-
-        // Remove initial and final newlines.
-        $tableText = trim($tableText);
-
-        // Split the input into lines, and convert each line to table format.
-        $lines = preg_split('/\n/', $tableText);
-        $row = 0;
-        foreach ($lines as $line) {
-            $wikitab .= "|-\n";
-            $bar = strpos($head, 'top') !== false && $row == 0 ? '!' : '|';
-
-            if ($applycssborderstyle !== false) {
-              $bar = $bar . 'style="border-style: solid; border-width: 1px" |';
-            }
-
-            $fields = preg_split($pattern, $line);
-            $col = 0;
-            foreach ($fields as $field) {
-                $cbar = strpos($head, 'left') !== false && $col == 0 ? '!' : $bar;
-                $safeField = htmlspecialchars($field, ENT_QUOTES, 'UTF-8');
-                if ($col < sizeof($fields)-1) {
-                  /* don't wrap for all but last column */
-                  $wikitab .= $cbar . ' <span style="white-space: nowrap;">' . $safeField . "</span>\n";
-                } else {
-                  $wikitab .= $cbar . " " . $safeField . "\n";
-                }
-                ++$col;
-            }
-            ++$row;
-        }
- 
-        // If we are not to apply the css border style
-        if ($applycssborderstyle == false) {
-          // Wrap the body in table tags, with the table parameters.
-          $wikiTable = "{|" . $params . "\n" . $wikitab . "|}";
-        } else {
-          $tablestyletext = 'style="border-collapse: collapse; border-width: 1px; border-style: solid; border-color: #000"';
-          $wikiTable = "{|" . $tablestyletext . " " . $params . "\n" . $wikitab . "|}";
-        }
-        // Parse the result so that the table can contain Wiki text.
-        // Uses recursiveTagParseFully() which is the correct approach for
-        // tag hook output in MediaWiki 1.35+ (Parser::parse() is deprecated).
-        $HTML = trim( str_replace( "</table>\n\n", "</table>",
+        // Convert the constructed wikitext to HTML.
+        // recursiveTagParseFully() is the correct approach for tag hook output
+        // in MediaWiki 1.35+ (Parser::parse() is deprecated).
+        $html = trim( str_replace( "</table>\n\n", "</table>",
             $parser->recursiveTagParseFully( $wikiTable, $frame )
         ) );
-        return $HTML;
+
+        return $html;
     }
 }
