@@ -124,6 +124,59 @@ class SimpleTableRendererTest extends MediaWikiUnitTestCase {
     }
 
     // ------------------------------------------------------------------
+    // Duplicate class= attribute bug
+    // ------------------------------------------------------------------
+
+    /**
+     * When the caller passes class="wikitable", the renderer must not emit
+     * two separate class= attributes.  A duplicate class= attribute is invalid
+     * HTML and browsers silently ignore the second one, which can cause the
+     * user-supplied classes to be lost.
+     */
+    public function testNoDuplicateClassAttribute(): void {
+        $wikitext = $this->render(
+            "H1\tH2\nA\tB",
+            [ 'sep' => 'tab', 'class' => 'wikitable sortable', 'style' => 'float:left' ]
+        );
+
+        // Count occurrences of 'class=' in the opening {| line.
+        $openingLine = strtok( $wikitext, "\n" );
+        $count = substr_count( $openingLine, 'class=' );
+        $this->assertSame( 1, $count, "There must be exactly one class= attribute on the table" );
+    }
+
+    /**
+     * User-supplied class tokens must appear in the merged class= value.
+     */
+    public function testUserClassIsMergedIntoClassAttribute(): void {
+        $wikitext    = $this->render( 'A||B', [ 'class' => 'wikitable sortable' ] );
+        $openingLine = strtok( $wikitext, "\n" );
+
+        $this->assertStringContainsString( 'wikitable',  $openingLine );
+        $this->assertStringContainsString( 'sortable',   $openingLine );
+        $this->assertStringContainsString( 'mw-collapsible', $openingLine );
+    }
+
+    // ------------------------------------------------------------------
+    // Missing sep= — default barbar behaviour
+    // ------------------------------------------------------------------
+
+    /**
+     * With the default tab separator, tab-delimited input works without
+     * needing an explicit sep="tab" attribute.  This matches the original
+     * JohanTheGhost behaviour that 9000+ wiki pages rely on.
+     */
+    public function testDefaultTabSeparatorSplitsOnTabs(): void {
+        $wikitext = $this->render( "Col1\tCol2\nA\tB", [] );
+
+        // Both columns must appear as separate cells.
+        $this->assertMatchesRegularExpression( '/[|!]\s+Col1/', $wikitext );
+        $this->assertMatchesRegularExpression( '/[|!]\s+Col2/', $wikitext );
+        $this->assertMatchesRegularExpression( '/\|\s+A/',      $wikitext );
+        $this->assertMatchesRegularExpression( '/\|\s+B/',      $wikitext );
+    }
+
+    // ------------------------------------------------------------------
     // Baseline sanity tests
     // ------------------------------------------------------------------
 
@@ -132,9 +185,12 @@ class SimpleTableRendererTest extends MediaWikiUnitTestCase {
         $this->assertStringStartsWith( 'Invalid separator:', $result );
     }
 
-    public function testDefaultSeparatorIsBarbar(): void {
+    public function testDefaultSeparatorIsTab(): void {
+        // 'tab' was the original default (JohanTheGhost). John Bray changed it
+        // to 'barbar' but the barbar regex was broken, so all existing pages
+        // relied on tab behaviour. Restored to 'tab' in v2.5.
         $renderer = new SimpleTableRenderer( 'A||B', [] );
-        $this->assertSame( 'barbar', $renderer->getSep() );
+        $this->assertSame( 'tab', $renderer->getSep() );
     }
 
     public function testTopHeaderRowUsesExclamationMark(): void {
@@ -156,8 +212,8 @@ class SimpleTableRendererTest extends MediaWikiUnitTestCase {
     }
 
     public function testAllowedAttribsArePassedThrough(): void {
-        $wikitext = $this->render( 'A||B', [ 'class' => 'wikitable sortable' ] );
-        $this->assertStringContainsString( 'class="wikitable sortable"', $wikitext );
+        $wikitext = $this->render( 'A||B', [ 'style' => 'float:left' ] );
+        $this->assertStringContainsString( 'style="float:left"', $wikitext );
     }
 
     public function testUnknownAttribsAreSilentlyDropped(): void {

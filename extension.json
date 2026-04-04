@@ -1,5 +1,6 @@
 {
         "name": "SimpleTable",
+        "version": "2.3",
         "author": ["Johan the Ghost", "John Bray", "Wolfgang Fahl"],
         "url": "https://github.com/WolfgangFahl/SimpleTable",
         "description": "Convert tab-separated or similar data into a Wiki table",

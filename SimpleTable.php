@@ -18,7 +18,9 @@
  *         fix $wikiitab typo in applycssborderstyle branch. Wolfgang Fahl.
  *   2.2   Replace deprecated Parser::parse() with recursiveTagParseFully().
  *         Wolfgang Fahl.
- *   2.3   Refactor for testability: extract SimpleTableRenderer. Wolfgang Fahl.
+ *   2.3   Restore tab as default sep; fix wikitext escaping (#7), duplicate
+ *         class= attribute, PHP 8.1 deprecations; extract SimpleTableRenderer
+ *         for testability; add PHPUnit tests. Wolfgang Fahl.
  *
  * Thanks for contributions to:
  *   Smcnaught

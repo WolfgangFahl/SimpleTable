@@ -25,7 +25,12 @@ class SimpleTableRenderer {
     // Constants
     // -----------------------------------------------------------------------
 
-    /** Supported field separators: name => preg pattern. */
+    /**
+     * Supported field separators: name => preg pattern.
+     * Default is 'tab' — the original default from JohanTheGhost's implementation.
+     * John Bray changed it to 'barbar' but the barbar regex was broken (/\|\|`/
+     * matched ||` not ||), so all existing pages were effectively using tab anyway.
+     */
     public const SEPARATORS = [
         'space'     => '/ /',
         'spaces'    => '/\s+/',
@@ -59,8 +64,11 @@ class SimpleTableRenderer {
     /** @var string Extra CSS class token for collapsible tables ('mw-collapsed' or ''). */
     private string $collapse;
 
-    /** @var string Validated, escaped extra HTML attribute string for the <table> element. */
+    /** @var string Validated, escaped extra HTML attributes (excluding class) for the <table> element. */
     private string $extraParams;
+
+    /** @var string User-supplied class value (merged into the base class string). */
+    private string $userClass;
 
     // -----------------------------------------------------------------------
     // Constructor
@@ -119,11 +127,12 @@ class SimpleTableRenderer {
      * Parses the raw tag-attribute array into typed properties.
      */
     private function parseArgs( array $args ): void {
-        $this->sep                = 'barbar';
-        $this->head               = null;
+        $this->sep                 = 'tab';
+        $this->head                = null;
         $this->applycssborderstyle = false;
-        $this->collapse           = '';
-        $this->extraParams        = '';
+        $this->collapse            = '';
+        $this->extraParams         = '';
+        $this->userClass           = '';
 
         foreach ( $args as $key => $val ) {
             if ( $key === 'sep' ) {
@@ -134,6 +143,10 @@ class SimpleTableRenderer {
                 $this->applycssborderstyle = true;
             } elseif ( $key === 'collapse' ) {
                 $this->collapse = 'mw-collapsed';
+            } elseif ( $key === 'class' ) {
+                // Collected separately so it can be merged into the single
+                // class= attribute rather than emitting a duplicate.
+                $this->userClass = htmlspecialchars( $val, ENT_QUOTES, 'UTF-8' );
             } elseif ( in_array( $key, self::ALLOWED_ATTRIBS, true ) ) {
                 $this->extraParams .= ' '
                     . htmlspecialchars( $key, ENT_QUOTES, 'UTF-8' )
@@ -151,7 +164,19 @@ class SimpleTableRenderer {
     private function buildTableParams(): string {
         $params  = 'data-expandtext="+" data-collapsetext="-"';
         $params .= $this->extraParams;
-        $params .= ' class="wikitable mw-collapsible ' . $this->collapse . '"';
+
+        // Merge user-supplied class tokens with the always-present base classes
+        // into a single class= attribute, deduplicating tokens.
+        $baseTokens = [ 'wikitable', 'mw-collapsible' ];
+        if ( $this->collapse !== '' ) {
+            $baseTokens[] = $this->collapse;
+        }
+        $userTokens = $this->userClass !== ''
+            ? preg_split( '/\s+/', trim( $this->userClass ) )
+            : [];
+        $allTokens  = array_unique( array_merge( $baseTokens, $userTokens ) );
+        $params    .= ' class="' . implode( ' ', $allTokens ) . '"';
+
         return $params;
     }
 
@@ -181,7 +206,7 @@ class SimpleTableRenderer {
      * @param int    $row     Zero-based row index (used to detect the header row).
      */
     private function buildRow( string $line, string $pattern, int $row ): string {
-        $isTopHeader = ( strpos( $this->head, 'top' ) !== false && $row === 0 );
+        $isTopHeader = ( $this->head !== null && strpos( $this->head, 'top' ) !== false && $row === 0 );
         $bar         = $isTopHeader ? '!' : '|';
 
         if ( $this->applycssborderstyle ) {
@@ -193,7 +218,7 @@ class SimpleTableRenderer {
         $col    = 0;
 
         foreach ( $fields as $field ) {
-            $isLeftHeader = ( strpos( $this->head, 'left' ) !== false && $col === 0 );
+            $isLeftHeader = ( $this->head !== null && strpos( $this->head, 'left' ) !== false && $col === 0 );
             $cbar         = $isLeftHeader ? '!' : $bar;
 
             // Do NOT escape cell content: it is wikitext that must reach the
